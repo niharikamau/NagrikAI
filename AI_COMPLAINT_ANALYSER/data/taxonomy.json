@@ -1,0 +1,34 @@
+[
+  {
+    "category":"Road Damage",
+    "department":"Public Works Department"
+  },
+  {
+    "category":"Garbage & Waste",
+    "department":"Sanitation Department"
+  },
+  {
+    "category":"Water & Drainage",
+    "department":"Water Department"
+  },
+  {
+    "category":"Street Lighting",
+    "department":"Electrical Department"
+  },
+  {
+    "category":"Air Pollution",
+    "department":"Pollution Control Board"
+  },
+  {
+    "category":"Public Hygiene",
+    "department":"Municipality"
+  },
+  {
+    "category":"Illegal Dumping",
+    "department":"Sanitation Department"
+  },
+  {
+    "category":"Electrical Hazard",
+    "department":"Electricity Board"
+  }
+]

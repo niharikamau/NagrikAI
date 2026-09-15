@@ -1,0 +1,50 @@
+[
+  {
+    "category":"Road Damage",
+    "right":"Citizens have the right to safe public roads.",
+    "law":"Municipal road maintenance responsibility",
+    "department":"Public Works Department"
+  },
+  {
+    "category":"Garbage & Waste",
+    "right":"Citizens have the right to sanitation and clean surroundings.",
+    "law":"Solid Waste Management Rules, 2016",
+    "department":"Sanitation Department"
+  },
+  {
+    "category":"Water & Drainage",
+    "right":"Citizens have the right to clean water and proper drainage.",
+    "law":"Municipal Water Supply & Drainage Regulations",
+    "department":"Water Department"
+  },
+  {
+    "category":"Street Lighting",
+    "right":"Citizens have the right to safe and illuminated public streets.",
+    "law":"Municipal street lighting responsibility",
+    "department":"Electrical Department"
+  },
+  {
+    "category":"Air Pollution",
+    "right":"Citizens have the right to a clean environment.",
+    "law":"Air (Prevention and Control of Pollution) Act, 1981",
+    "department":"Pollution Control Board"
+  },
+  {
+    "category":"Public Hygiene",
+    "right":"Citizens have the right to hygienic public facilities.",
+    "law":"Municipal Public Health Regulations",
+    "department":"Municipality"
+  },
+  {
+    "category":"Illegal Dumping",
+    "right":"Citizens have the right to protection from illegal waste disposal.",
+    "law":"Solid Waste Management Rules, 2016",
+    "department":"Sanitation Department"
+  },
+  {
+    "category":"Electrical Hazard",
+    "right":"Citizens have the right to protection from dangerous electrical infrastructure.",
+    "law":"Electricity Safety Regulations",
+    "department":"Electricity Board"
+  }
+]
