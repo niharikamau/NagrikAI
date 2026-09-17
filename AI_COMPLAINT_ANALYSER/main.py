@@ -1,113 +1,189 @@
 from google import genai
 from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import os
 import json
+
+
+# -----------------------------
+# APP SETUP
+# -----------------------------
+
+app = FastAPI()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-print(os.path.exists(os.path.join(DATA_DIR, "taxonomy.json")))
+load_dotenv(os.path.join(BASE_DIR, "config", ".env"))
+
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
+
+
+# -----------------------------
+# LOAD DATABASE FILES
+# -----------------------------
 
 def load_taxonomy():
-    with open(os.path.join(DATA_DIR, "taxonomy.json"), "r") as file:
+    with open(
+        os.path.join(DATA_DIR, "taxonomy.json"), "r"
+    ) as file:
         return json.load(file)
 
-def load_severity_rules():
-    with open(os.path.join(DATA_DIR, "severity_rules.json"), "r") as file:
-        return json.load(file)
 
 def load_rights_database():
-    with open(os.path.join(DATA_DIR,"rights_database.json"),"r") as file:
-        return json.load(file)    
+    with open(
+        os.path.join(DATA_DIR, "rights_database.json"), "r"
+    ) as file:
+        return json.load(file)
 
 
-taxonomy = load_taxonomy()    
-severity_rules = load_severity_rules()
+taxonomy = load_taxonomy()
 rights_database = load_rights_database()
 
+
+# -----------------------------
+# HELPER FUNCTIONS
+# -----------------------------
+
 def route_department(category):
+
     for item in taxonomy:
         if item["category"] == category:
             return item["department"]
+
     return "Municipality"
 
+
 def get_rights(category):
+    category = category.strip().lower()
+
     for item in rights_database:
-        if item["category"] == category:
+        database_category = item["category"].strip().lower()
+
+        if database_category == category:
             return item
 
     return {
-        "right":"Information unavailable",
-        "law":"Not available",
-        "department":"Municipality"
+        "right": "Information unavailable",
+        "law": "Not available",
+        "department": "Municipality"
     }
 
-def generate_assessment(severity, category):
+def generate_assessment(severity):
+
     if severity == "Critical":
         return {
-            "risk_level": "Extreme",
-            "response_time": "Immediate (0–2 hours)",
-            "recommended_action": "Dispatch emergency field team immediately.",
-            "reason": "The complaint indicates an immediate threat to public safety."
+            "response_time": "Immediate (0–2 hours)"
         }
 
     elif severity == "High":
         return {
-            "risk_level": "High",
-            "response_time": "Within 24 hours",
-            "recommended_action": "Assign the complaint to the responsible department urgently.",
-            "reason": "The issue presents a significant safety or public health risk."
+            "response_time": "Within 24 hours"
         }
 
     elif severity == "Medium":
         return {
-            "risk_level": "Moderate",
-            "response_time": "Within 2–3 days",
-            "recommended_action": "Schedule inspection and routine maintenance.",
-            "reason": "The complaint affects daily public services but is not immediately dangerous."
+            "response_time": "Within 2–3 days"
         }
 
     else:
         return {
-            "risk_level": "Low",
-            "response_time": "Within 7 days",
-            "recommended_action": "Include the issue in the regular maintenance schedule.",
-            "reason": "The issue is a minor civic inconvenience."
+            "response_time": "Within 7 days"
         }
 
 
+def calculate_confidence(data):
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, "config", ".env"))
+    score = 50
+
+    if data.get("category"):
+        score += 15
+
+    if data.get("subcategory"):
+        score += 5
+
+    if len(data.get("summary", "")) > 30:
+        score += 10
+
+    if data.get("severity") == "Critical":
+        score += 10
+
+    elif data.get("severity") == "High":
+        score += 8
+
+    elif data.get("severity") == "Medium":
+        score += 5
+
+    score = min(score, 100)
+
+    return {
+        "score": score
+    }
 
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# -----------------------------
+# AI PROCESSING
+# -----------------------------
 
-user_complaint = input("Enter your complaint: ")
+def generate_ai_result(user_complaint):
 
-prompt = f"""
+    prompt = f"""
 You are NagrikAI, an AI Civic Complaint Analyst.
 
-Your job is to analyze citizen complaints professionally.
+Analyze the citizen complaint professionally.
 
 TASKS:
 
 1. Identify the civic issue.
-2. Classify it into ONE category only.
-3. Decide the severity.
-4. Identify the responsible government department.
-5. Write a short professional summary.
+2. Classify the complaint into EXACTLY ONE
+   of the three categories listed below.
+3. Generate a specific subcategory.
+4. Decide the severity.
+5. Identify the responsible government department.
+6. Write a short professional summary.
 
-VALID CATEGORIES:
+MAIN CATEGORIES:
 
-- Road Damage
-- Garbage & Waste
-- Water & Drainage
-- Street Lighting
-- Air Pollution
-- Public Hygiene
+1. Road Infrastructure
+2. Water and Drainage
+3. Sanitation and Garbage
+
+IMPORTANT CATEGORY RULES:
+
+- Select EXACTLY ONE main category.
+- Use ONLY the three main categories provided.
+- Do not create new main categories.
+- The main category must contain the exact
+  wording of one of the three options.
+- Generate the subcategory based on the complaint.
+- The subcategory should be specific and relevant.
+
+EXAMPLES OF SUBCATEGORIES:
+
+Road Infrastructure:
+- Pothole
+- Road Cracks
+- Broken Footpath
+- Damaged Road
+
+Water and Drainage:
+- Water Leakage
+- Drain Blockage
+- Water Contamination
+- Flooding
+
+Sanitation and Garbage:
+- Garbage Accumulation
 - Illegal Dumping
-- Electrical Hazard
+- Waste Collection
+- Public Hygiene
+
+These are examples, not a fixed subcategory list.
+Generate an appropriate subcategory based on
+the actual complaint.
 
 SEVERITY RULES:
 
@@ -125,118 +201,105 @@ Immediate danger to human life.
 
 DEPARTMENT MAPPING:
 
-Road Damage → Public Works Department
-Garbage & Waste → Sanitation Department
-Water & Drainage → Water Department
-Street Lighting → Electrical Department
-Air Pollution → Pollution Control Board
-Public Hygiene → Municipality
-Illegal Dumping → Sanitation Department
-Electrical Hazard → Electricity Board
+Road Infrastructure → Public Works Department
+Water and Drainage → Water Department
+Sanitation and Garbage → Sanitation Department
 
 Return ONLY valid JSON.
 
 {{
-"issue":"",
-"category":"",
-"location":"",
-"summary":"",
-"severity":"",
-"department":""
+"issue": "",
+"category": "",
+"subcategory": "",
+"summary": "",
+"severity": "",
+"department": ""
 }}
 
 Citizen Complaint:
 {user_complaint}
 """
 
-response = client.models.generate_content(
-    model="gemini-3.6-flash",
-    contents=prompt,
-     config={
-        "response_mime_type": "application/json"
-     }
-)
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json"
+        }
+    )
 
-data = json.loads(response.text)
+    data = json.loads(response.text)
 
-rights = get_rights(data["category"])
+    # Validate main category
+    valid_categories = [
+        "Road Infrastructure",
+        "Water and Drainage",
+        "Sanitation and Garbage"
+    ]
 
-data["department"] = rights["department"]
-data["citizen_right"] = rights["right"]
-data["law"] = rights["law"]
+    if data.get("category") not in valid_categories:
+        raise ValueError("Invalid category returned by Gemini")
 
-assessment = generate_assessment(
-    data["severity"],
-    data["category"]
-)
+    # Department from backend taxonomy
+    data["department"] = route_department(
+        data["category"]
+    )
 
-def calculate_confidence(data):
-    score = 50
+    # Rights and laws
+    rights = get_rights(data["category"])
 
-    if data["category"]:
-        score += 15
+    data["department"] = rights["department"]
+    data["citizen_right"] = rights["right"]
+    data["law"] = rights["law"]
 
-    if data["location"]:
-        score += 10
+    # Assessment
+    assessment = generate_assessment(
+        data["severity"]
+    )
 
-    if len(data["summary"]) > 30:
-        score += 10
+    data["response_time"] = assessment["response_time"]
 
-    if data["severity"] == "Critical":
-        score += 10
-    elif data["severity"] == "High":
-        score += 8
-    elif data["severity"] == "Medium":
-        score += 5
+    # Confidence score
+    confidence = calculate_confidence(data)
 
-    score = min(score, 100)
+    data["confidence_score"] = confidence["score"]
 
-    if score >= 90:
-        level = "Very High"
-    elif score >= 75:
-        level = "High"
-    elif score >= 60:
-        level = "Medium"
-    else:
-        level = "Low"
-
-    return {
-        "score": score,
-        "level": level
-    }
-
-data["risk_level"] = assessment["risk_level"]
-data["response_time"] = assessment["response_time"]
-data["recommended_action"] = assessment["recommended_action"]
-data["reason"] = assessment["reason"]
-
-confidence = calculate_confidence(data)
-
-data["confidence_score"] = confidence["score"]
-data["confidence_level"] = confidence["level"]
+    return data
 
 
-print("\n========== NAGRIK AI REPORT ==========")
+# -----------------------------
+# API REQUEST MODEL
+# -----------------------------
 
-print("Issue:", data["issue"])
-print("Category:", data["category"])
-print("Location:", data["location"])
-print("Summary:", data["summary"])
+class ComplaintRequest(BaseModel):
 
-print("\n--- Assessment ---")
-print("Severity:", data["severity"])
-print("Risk Level:", data["risk_level"])
-print("Reason:", data["reason"])
-print("Response Time:", data["response_time"])
-print("Recommended Action:", data["recommended_action"])
+    complaint: str
 
-print("\n--- Authority ---")
-print("Department:", data["department"])
-print("Citizen Right:", data["citizen_right"])
-print("Relevant Law:", data["law"])
 
-print("\n--- AI Confidence ---")
-print("Confidence Score:", str(data["confidence_score"]) + "%")
-print("Confidence Level:", data["confidence_level"])
+# -----------------------------
+# API ENDPOINT
+# -----------------------------
 
-print("\nComplaint analyzed successfully!")
+@app.post("/analyze")
+def analyze_complaint(request: ComplaintRequest):
+
+    if not request.complaint.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Complaint cannot be empty"
+        )
+
+    try:
+
+        result = generate_ai_result(
+            request.complaint
+        )
+
+        return result
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
