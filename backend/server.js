@@ -30,6 +30,7 @@ app.use(
     origin: process.env.CLIENT_URL || "*",
     credentials: true,
   })
+  
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));

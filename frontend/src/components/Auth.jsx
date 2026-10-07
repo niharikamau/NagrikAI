@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, MapPin, AlertCircle, ArrowRight, Shield, UserCheck } from 'lucide-react';
 import { mockDb } from '../utils/mockDb';
+import { API_BASE_URL, saveSession } from "../utils/api";
 
 export default function Auth({ mode = 'login', setActiveTab, onLoginSuccess }) {
   const [authMode, setAuthMode] = useState(mode); // 'login' | 'signup' | 'forgot'
@@ -23,19 +24,39 @@ export default function Auth({ mode = 'login', setActiveTab, onLoginSuccess }) {
     setError('');
   };
 
-  const handleLoginSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.email || !formData.password) {
-      setError('Please fill in all fields.');
-      return;
+  const handleLoginSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+
+  if (!formData.email || !formData.password) {
+    setError("Please fill in all fields.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Login failed");
     }
-    const result = mockDb.login(formData.email, formData.password);
-    if (result.success) {
-      onLoginSuccess(result.user);
-    } else {
-      setError(result.message);
-    }
-  };
+
+    saveSession(data.token);
+    onLoginSuccess(data.user);
+  } catch (err) {
+    setError(err.message || "Unable to connect to the server.");
+  }
+};
 
   // Quick Demo Auto-fill Helper
   const handleQuickLogin = (email, password) => {
@@ -51,33 +72,55 @@ export default function Auth({ mode = 'login', setActiveTab, onLoginSuccess }) {
     }
   };
 
-  const handleSignupSubmit = (e) => {
-    e.preventDefault();
-    const { name, email, phone, address, password, confirmPassword } = formData;
-    
-    if (!name || !email || !phone || !address || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
-      return;
+  const handleSignupSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+
+  const { name, email, phone, address, password, confirmPassword } = formData;
+
+  if (!name || !email || !phone || !address || !password || !confirmPassword) {
+    setError("Please fill in all fields.");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setError("Passwords do not match.");
+    return;
+  }
+
+  if (password.length < 6) {
+    setError("Password must be at least 6 characters.");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        phone,
+        address,
+        password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Registration failed");
     }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
-    const result = mockDb.register({ name, email, phone, address, password });
-    if (result.success) {
-      onLoginSuccess(result.user);
-      setActiveTab('dashboard');
-    } else {
-      setError(result.message);
-    }
-  };
+    saveSession(data.token);
+    onLoginSuccess(data.user);
+    setActiveTab("dashboard");
+  } catch (err) {
+    setError(err.message || "Unable to connect to the server.");
+  }
+};
 
   const handleForgotSubmit = (e) => {
     e.preventDefault();

@@ -9,8 +9,7 @@ import ComplaintDetails from './portals/citizen/ComplaintDetails';
 import UserProfile from './portals/citizen/UserProfile';
 import AdminPortal from './portals/admin/AdminPortal';
 import OfficialPortal from './portals/official/OfficialPortal';
-import { mockDb } from './utils/mockDb';
-
+import { API_BASE_URL, getToken, clearSession } from "./utils/api";
 function App() {
   const [activeTab, setActiveTab] = useState('landing');
   const [currentUser, setCurrentUser] = useState(null);
@@ -19,14 +18,52 @@ function App() {
 
   // Sync user session on mount
   useEffect(() => {
-    const user = mockDb.getCurrentUser();
-    setCurrentUser(user);
-    if (user && (user.role === 'admin' || user.email === 'admin@nagrik.ai')) {
-      setActiveTab('admin');
-    } else if (user && (user.role === 'official' || user.email === 'grievance.officer@nagrikai.in' || user.email === 'rahul@department.gov')) {
-      setActiveTab('official');
+  const token = getToken();
+
+  if (!token) return;
+
+  let cancelled = false;
+
+  const restoreSession = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Session expired");
+      }
+
+      if (cancelled) return;
+
+      const user = data.user;
+      setCurrentUser(user);
+
+      if (user.role === "admin") {
+        setActiveTab("admin");
+      } else if (user.role === "official") {
+        setActiveTab("official");
+      } else {
+        setActiveTab("dashboard");
+      }
+    } catch (err) {
+      clearSession();
+      if (!cancelled) {
+        setCurrentUser(null);
+      }
     }
-  }, []);
+  };
+
+  restoreSession();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -40,10 +77,10 @@ function App() {
   };
 
   const handleLogout = () => {
-    mockDb.logout();
-    setCurrentUser(null);
-    setActiveTab('landing');
-  };
+  clearSession();
+  setCurrentUser(null);
+  setActiveTab("landing");
+};
 
   const triggerNotificationsUpdate = () => {
     setNotifTrigger(prev => prev + 1);

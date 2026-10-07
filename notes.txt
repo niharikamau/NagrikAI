@@ -7,3 +7,32 @@ remove confidence level very High
 
 law ka sochna padega
 ??response time??
+
+we are using local stoage to tore jwt tockens in production we 
+have other methods like httponly
+
+authentciation logn signup for user portal works 
+
+Navbar.jsx:131 Encountered two children with the same key, `9296`.
+ Keys should be unique so that components
+maintain their identity across updates.
+Non-unique keys may cause children to
+be duplicated and/or omitted — the behavior is unsupported and 
+could change in a future version.
+
+rn its dummy mockup map so shit could work offline
+-we have to secure phoo itegrity 
+-sort suplicate complinst 
+-sort sensors
+
+make the photo upload pretty and visible like a preview 
+currently itstsoring in formData.evidence file later we nee dit to wire up
+to mongodb 
+
+- currently laws and category are hard coded 
+-we can useai for border aspects categprigrization 
+- we can skip he location automatically give them edit option
+
+// WE SUCESSFULLY CONNECTED AUTH FROM FRONT TO BACKEND 
+// WE SUCESSFULLY CONNECETED AI TO FRONT TO BACK  FOR COMPLAINTS
+// COMPLAINT WHOLE THRU IS WORKING 

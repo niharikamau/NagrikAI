@@ -2,13 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, AlertCircle, Check, ArrowRight, ArrowLeft, MapPin, Upload, X, BrainCircuit, ShieldAlert, CheckCircle, FileText } from 'lucide-react';
 import { mockDb } from '../../utils/mockDb';
 
-const PRESET_MOCK_IMAGES = [
-  { name: 'garbage.jpg', category: 'Waste Management', url: 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?w=150&auto=format&fit=crop' },
-  { name: 'pothole.jpg', category: 'Infrastructure / Roads', url: 'https://images.unsplash.com/photo-1515162305285-0293e4767cc2?w=150&auto=format&fit=crop' },
-  { name: 'streetlight.jpg', category: 'Public Utilities', url: 'https://images.unsplash.com/photo-1509395062183-67c5ad6faff9?w=150&auto=format&fit=crop' },
-  { name: 'leakage.jpg', category: 'Water & Sanitation', url: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=150&auto=format&fit=crop' }
-];
-
 export default function FileComplaint({ setActiveTab, initialEditComplaintId = null }) {
   const [step, setStep] = useState(1);
   const [complaintId, setComplaintId] = useState(initialEditComplaintId);
@@ -21,11 +14,12 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
     evidence: [],
     aiAssessment: null
   });
-  
+
   const [error, setError] = useState('');
   const [savingDraft, setSavingDraft] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const mapCanvasRef = useRef(null);
+  const [evidenceFile, setEvidenceFile] = useState(null);
 
   // Load draft or existing complaint details on mount
   useEffect(() => {
@@ -62,14 +56,14 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
     const canvas = mapCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw background city map design
     ctx.fillStyle = '#f1f5f9';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw block grids representing city streets
     ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 1.5;
@@ -128,15 +122,15 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     // Auto name location based on grid
     let sector = "Sector 4";
     if (x > 200 && y < 150) sector = "School Zone Area";
     else if (x < 150 && y < 150) sector = "Public Park Lane";
     else if (y > 200) sector = "Metro Crossing Road";
-    
+
     const mockAddress = `${sector}, Grid Coordinates: (${Math.round(x)}, ${Math.round(y)})`;
-    
+
     setFormData({
       ...formData,
       locationCoordinates: { x, y },
@@ -145,13 +139,38 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
   };
 
   const handleUseCurrentLocation = () => {
-    const randomX = Math.floor(60 + Math.random() * 260);
-    const randomY = Math.floor(60 + Math.random() * 180);
-    setFormData({
-      ...formData,
-      locationCoordinates: { x: randomX, y: randomY },
-      locationName: `Sector 4, GPS Coordinates: (${randomX}.42, ${randomY}.76)`
-    });
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+
+        setFormData(prev => ({
+          ...prev,
+          locationName: `GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+        }));
+      },
+      (error) => {
+        if (error.code === 1) {
+          setError('Location permission denied. Please allow location access in your browser settings.');
+        } else if (error.code === 2) {
+          setError('Your location could not be determined. Please try again.');
+        } else {
+          setError('Location request timed out. Please try again.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
   };
 
   const handleSaveDraft = () => {
@@ -164,20 +183,17 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
   };
 
   const handleNextStep = () => {
-    if (step === 1) {
-      if (!formData.title.trim() || !formData.description.trim()) {
-        setError('Please enter both title and description details.');
-        return;
-      }
-      setError('');
+    if (step === 1 && !formData.description.trim()) {
+      setError('Please describe the civic issue before proceeding.');
+      return;
     }
-    if (step === 2) {
-      if (!formData.locationName.trim()) {
-        setError('Please specify the location address or click on the map.');
-        return;
-      }
-      setError('');
+
+    if (step === 2 && !formData.locationName.trim()) {
+      setError('Please specify the location address or click on the map.');
+      return;
     }
+
+    setError('');
     setStep(step + 1);
   };
 
@@ -186,33 +202,68 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
     setStep(step - 1);
   };
 
-  const handleSelectPresetImage = (presetName) => {
-    if (formData.evidence.includes(presetName)) {
-      setFormData({
-        ...formData,
-        evidence: formData.evidence.filter(img => img !== presetName)
-      });
-    } else {
-      setFormData({
-        ...formData,
-        evidence: [...formData.evidence, presetName]
-      });
-    }
-  };
+  const handleAnalyzeComplaint = async () => {
+  if (!evidenceFile) {
+    setError('Please upload a photo first.');
+    return;
+  }
 
-  const handleAnalyzeComplaint = () => {
-    setAnalyzing(true);
-    setTimeout(() => {
-      const assessment = mockDb.analyzeComplaintDescription(formData.description);
-      setFormData(prev => ({
-        ...prev,
-        aiAssessment: assessment,
-        category: assessment.category // Update category to AI predicted category
-      }));
-      setAnalyzing(false);
-      setStep(5);
-    }, 1500);
-  };
+  if (!formData.description.trim()) {
+    setError('Please describe the civic issue first.');
+    return;
+  }
+
+  setAnalyzing(true);
+  setError('');
+
+  try {
+    // Retrieve the login token.
+const token = localStorage.getItem('nagrikai_token');
+    if (!token) {
+      throw new Error('Please log in again to analyze your complaint.');
+    }
+
+    const response = await fetch(
+      'http://localhost:5000/api/complaints/analyze',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          description: formData.description
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || 'AI assessment failed.'
+      );
+    }
+
+    const assessment = data.assessment;
+
+    setFormData(prev => ({
+      ...prev,
+      aiAssessment: assessment,
+      category: assessment.category || prev.category,
+      title: assessment.subcategory || prev.title
+    }));
+
+    setStep(4);
+
+  } catch (error) {
+    setError(
+      error.message || 'Could not connect to the AI service.'
+    );
+  } finally {
+    setAnalyzing(false);
+  }
+};
 
   const handleFileComplaint = () => {
     const finalComplaint = {
@@ -225,7 +276,7 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
       evidence: formData.evidence,
       aiAssessment: formData.aiAssessment
     };
-    
+
     mockDb.saveComplaint(finalComplaint);
     mockDb.clearDraft();
     setActiveTab('my-complaints');
@@ -251,8 +302,7 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
           { num: 1, label: "Description" },
           { num: 2, label: "Location" },
           { num: 3, label: "Evidence" },
-          { num: 4, label: "Review" },
-          { num: 5, label: "Assessment" }
+          { num: 4, label: "Assessment" }
         ].map((s) => (
           <div key={s.num} className={`step-indicator-node ${step === s.num ? 'active' : ''} ${step > s.num ? 'completed' : ''}`}>
             <div className="node-circle">
@@ -279,17 +329,6 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
             <p className="step-subtitle">Explain the incident or issue in detail so operators can triage it correctly.</p>
 
             <div className="form-group">
-              <label htmlFor="complaint-title">Complaint Title</label>
-              <input
-                type="text"
-                id="complaint-title"
-                placeholder="e.g. Garbage accumulation near school gate"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group">
               <label htmlFor="complaint-desc">What happened?</label>
               <textarea
                 id="complaint-desc"
@@ -299,21 +338,6 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               />
               <span className="input-hint">Tell us what happened, where and when.</span>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="complaint-category">Initial Category</label>
-              <select
-                id="complaint-category"
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              >
-                <option value="Waste Management">Waste Management</option>
-                <option value="Public Utilities">Public Utilities</option>
-                <option value="Infrastructure / Roads">Infrastructure / Roads</option>
-                <option value="Water & Sanitation">Water & Sanitation</option>
-                <option value="General Municipal Issue">General Municipal Issue</option>
-              </select>
             </div>
 
             <div className="wizard-actions">
@@ -379,122 +403,91 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
         {step === 3 && (
           <div className="wizard-step-content animate-fade-up">
             <h3>Step 3: Upload Evidence</h3>
-            <p className="step-subtitle">Adding photographs helps verify reports and speeds up division approvals. (You may skip this step if no photos are available).</p>
+            <p className="step-subtitle">
+              Upload a photograph of the civic issue. A photo is required
+              to proceed.
+            </p>
 
-            <div className="preset-upload-header">
-              <span>Select mock photos matching your report category:</span>
-            </div>
+            <div className="form-group">
+              <label htmlFor="complaint-evidence">
+                Choose a photo
+              </label>
 
-            <div className="preset-images-grid">
-              {PRESET_MOCK_IMAGES.map((img) => {
-                const isSelected = formData.evidence.includes(img.name);
-                return (
-                  <div 
-                    key={img.name} 
-                    className={`preset-image-card ${isSelected ? 'selected' : ''}`}
-                    onClick={() => handleSelectPresetImage(img.name)}
-                  >
-                    <img src={img.url} alt={img.name} />
-                    <div className="preset-meta">
-                      <span className="preset-name">{img.name}</span>
-                      <span className="preset-badge">{img.category}</span>
-                    </div>
-                    {isSelected && (
-                      <div className="selected-check-overlay">
-                        <Check size={18} className="check-icon" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+              <input
+                type="file"
+                id="complaint-evidence"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
 
-            {formData.evidence.length > 0 && (
-              <div className="uploaded-list-box">
-                <h4>Selected Evidence to Upload:</h4>
-                <div className="selected-image-chips">
-                  {formData.evidence.map(name => (
-                    <div key={name} className="image-chip">
-                      <span>{name}</span>
-                      <button onClick={() => handleSelectPresetImage(name)}>
+                  setEvidenceFile(file);
+                  setFormData(prev => ({
+                    ...prev,
+                    evidence: file ? [file.name] : []
+                  }));
+                  setError('');
+                }}
+              />
+
+              {evidenceFile && (
+                <div className="uploaded-list-box">
+                  <h4>Selected Photo</h4>
+                  <div className="selected-image-chips">
+                    <div className="image-chip">
+                      <span>{evidenceFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEvidenceFile(null);
+                          setFormData(prev => ({
+                            ...prev,
+                            evidence: []
+                          }));
+
+                          const input = document.getElementById(
+                            'complaint-evidence'
+                          );
+
+                          if (input) input.value = '';
+                        }}
+                      >
                         <X size={14} />
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            <div className="wizard-actions">
-              <button className="btn-secondary" onClick={handlePrevStep}>
-                <ArrowLeft size={16} />
-                <span>Back</span>
-              </button>
-              <div className="right-actions-group">
-                {formData.evidence.length === 0 && (
-                  <button className="btn-text" onClick={handleNextStep}>
-                    Skip Evidence
-                  </button>
-                )}
-                <button className="btn-primary" onClick={handleNextStep}>
-                  <span>Continue</span>
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4: AI PRE-ASSESSMENT SCREEN */}
-        {step === 4 && (
-          <div className="wizard-step-content animate-fade-up">
-            <h3>Step 4: AI Assessment Screen</h3>
-            <p className="step-subtitle">Review your documented details before triggering our AI verification assessment model.</p>
-
-            <div className="review-details-box">
-              <div className="review-row">
-                <span className="review-label">Title</span>
-                <span className="review-value font-bold">{formData.title}</span>
-              </div>
-              <div className="review-row">
-                <span className="review-label">Category Selection</span>
-                <span className="review-value">{formData.category}</span>
-              </div>
-              <div className="review-row">
-                <span className="review-label">Description</span>
-                <span className="review-value desc-text">{formData.description}</span>
-              </div>
-              <div className="review-row">
-                <span className="review-label">Location Address</span>
-                <span className="review-value">{formData.locationName}</span>
-              </div>
-              <div className="review-row">
-                <span className="review-label">Image Evidence</span>
-                <span className="review-value">
-                  {formData.evidence.length === 0 ? 'No evidence attached' : formData.evidence.join(', ')}
-                </span>
-              </div>
+              )}
             </div>
 
             <div className="wizard-actions">
-              <button className="btn-secondary" onClick={handlePrevStep}>
-                <ArrowLeft size={16} />
-                <span>Back</span>
-              </button>
-              <button 
-                className="btn-primary-large glowing-btn" 
-                onClick={handleAnalyzeComplaint}
-                disabled={analyzing}
+              <button
+                className="btn-secondary"
+                onClick={handlePrevStep}
               >
-                <BrainCircuit size={18} />
-                <span>{analyzing ? 'Analyzing Complaint Details...' : 'Analyze Complaint'}</span>
+                <ArrowLeft size={16} />
+                <span>Back</span>
               </button>
+
+              {evidenceFile && (
+                <button
+                  className="btn-primary-large glowing-btn"
+                  onClick={handleAnalyzeComplaint}
+                  disabled={analyzing}
+                >
+                  <BrainCircuit size={18} />
+                  <span>
+                    {analyzing
+                      ? 'Analyzing Complaint Details...'
+                      : 'Analyze Complaint'}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         )}
 
         {/* STEP 5: AI REPORT CARD */}
-        {step === 5 && formData.aiAssessment && (
+        {step === 4 && formData.aiAssessment && (
           <div className="wizard-step-content animate-fade-up">
             <div className="assessment-success-banner">
               <BrainCircuit className="banner-ai-icon" size={28} />
@@ -554,3 +547,4 @@ export default function FileComplaint({ setActiveTab, initialEditComplaintId = n
     </div>
   );
 }
+
