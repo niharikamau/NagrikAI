@@ -366,109 +366,21 @@ const SEED_SENSORS = [
     type: "Water / Drain Monitoring",
     location: "XYZ Drain (Demo Location A)",
     status: "Online",
-    currentReading: "72%",
-    currentValue: 72,
-    threshold: "85%",
-    thresholdValue: 85,
-    unit: "%",
-    urgency: "Critical",
-    lastMaintained: "10 Jul 2026",
-    lastReadingTime: "12 Aug 2026, 01:00 PM",
-    recentReadings: [
-      { time: "10:00 AM", value: "65%", urgency: "Medium" },
-      { time: "11:00 AM", value: "67%", urgency: "Medium" },
-      { time: "01:00 PM", value: "72%", urgency: "High" }
-    ],
-    historyLogs: [
-      { sno: 1, reading: "91%", location: "XYZ Drain", time: "12 Aug 2026, 10:32 AM", urgency: "Critical", status: "Threshold Exceeded" },
-      { sno: 2, reading: "88%", location: "XYZ Drain", time: "11 Aug 2026, 04:15 PM", urgency: "Critical", status: "Threshold Exceeded" },
-      { sno: 3, reading: "72%", location: "XYZ Drain", time: "12 Aug 2026, 01:00 PM", urgency: "High", status: "Normal Range" }
-    ]
-  },
-  {
-    id: "SENSOR #02",
-    modelName: "TerraVibe Structural 400",
-    type: "Road / Infrastructure Monitoring",
-    location: "Sector 5 Flyover (Demo Location B)",
-    status: "Online",
-    currentReading: "58 mm/s",
-    currentValue: 58,
-    threshold: "80 mm/s",
-    thresholdValue: 80,
-    unit: "mm/s",
-    urgency: "High",
-    lastMaintained: "01 Aug 2026",
-    lastReadingTime: "14 Aug 2026, 03:00 PM",
-    lastEvent: "Possible infrastructure issue detected with date",
-    recentReadings: [
-      { time: "09:00 AM", value: "42 mm/s", urgency: "Low" },
-      { time: "12:00 PM", value: "54 mm/s", urgency: "Medium" },
-      { time: "03:00 PM", value: "58 mm/s", urgency: "High" }
-    ],
-    historyLogs: [
-      { sno: 1, reading: "84 mm/s", location: "Sector 5 Flyover", time: "14 Aug 2026, 09:12 AM", urgency: "High", status: "Vibration Spike" }
-    ]
-  },
-  {
-    id: "SENSOR #03",
-    modelName: "AeroSense Gas & Particulate",
-    type: "Air & Sanitation Monitoring",
-    location: "Industrial Zone (Demo Location C)",
-    status: "Offline",
-    currentReading: "--",
+
+    currentReading: "0%",
     currentValue: 0,
-    threshold: "150 AQI",
-    thresholdValue: 150,
-    unit: "AQI",
-    urgency: "Critical",
-    lastMaintained: "25 May 2026",
-    lastReadingTime: "Today (Offline for 20 mins)",
-    lastEvent: "Sensor #03 has been offline for 20 minutes",
-    recentReadings: [
-      { time: "08:00 AM", value: "112 AQI", urgency: "High" }
-    ],
-    historyLogs: [
-      { sno: 1, reading: "Offline", location: "Industrial Zone", time: "Today, 20 mins ago", urgency: "Critical", status: "Signal Lost" }
-    ]
-  },
-  {
-    id: "SENSOR #04",
-    modelName: "SonicFlow Sewer Acoustic",
-    type: "Water / Drain Monitoring",
-    location: "Sector 4 Main Sump (Demo Location D)",
-    status: "Online",
-    currentReading: "44 dB",
-    currentValue: 44,
-    threshold: "75 dB",
-    thresholdValue: 75,
-    unit: "dB",
+
+    threshold: "80%",
+    thresholdValue: 80,
+
+    unit: "%",
+
     urgency: "Low",
-    lastMaintained: "05 Aug 2026",
-    lastReadingTime: "Today, 01:00 PM",
-    recentReadings: [
-      { time: "10:00 AM", value: "40 dB", urgency: "Low" },
-      { time: "01:00 PM", value: "44 dB", urgency: "Low" }
-    ],
-    historyLogs: []
-  },
-  {
-    id: "SENSOR #05",
-    modelName: "LumaGrid Smart Pole Lux",
-    type: "Public Lighting Monitoring",
-    location: "Main Avenue (Demo Location E)",
-    status: "Online",
-    currentReading: "14 Lux",
-    currentValue: 14,
-    threshold: "25 Lux",
-    thresholdValue: 25,
-    unit: "Lux",
-    urgency: "Low",
-    lastMaintained: "12 Aug 2026",
-    lastReadingTime: "Today, 07:00 PM",
-    recentReadings: [
-      { time: "07:00 PM", value: "14 Lux", urgency: "Low" }
-    ],
-    historyLogs: []
+
+    lastMaintained: "10 Jul 2026",
+    lastReadingTime: "--",
+
+    recentReadings: []
   }
 ];
 

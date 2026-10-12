@@ -1,7 +1,12 @@
 const mongoose = require("mongoose");
 
 const readingSchema = new mongoose.Schema(
-  { time: String, value: String, urgency: String },
+  {
+    time: String,
+    value: String,
+    numericValue: Number,
+    urgency: String,
+  },
   { _id: false }
 );
 
@@ -17,6 +22,10 @@ const sensorSchema = new mongoose.Schema(
     type: String,
     location: String,
     status: { type: String, enum: ["Online", "Offline"], default: "Online" },
+    lastReadingAt: {
+      type: Date,
+      default: null
+    },
     currentReading: String,
     currentValue: Number,
     threshold: String,
@@ -28,6 +37,29 @@ const sensorSchema = new mongoose.Schema(
     lastEvent: String,
     recentReadings: { type: [readingSchema], default: [] },
     historyLogs: { type: [historyLogSchema], default: [] },
+    criticalSince: {
+      type: Date,
+      default: null
+    },
+
+    criticalComplaintCreated: {
+      type: Boolean,
+      default: false
+    },
+    criticalSince: {
+  type: Date,
+  default: null
+},
+
+criticalComplaintCreated: {
+  type: Boolean,
+  default: false
+},
+
+belowThresholdSince: {
+  type: Date,
+  default: null
+}
   },
   { timestamps: true }
 );

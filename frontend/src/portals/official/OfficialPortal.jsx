@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  FileText, 
-  Activity, 
-  Truck, 
-  Bell, 
-  User, 
-  LogOut, 
-  LayoutDashboard, 
+import {
+  FileText,
+  Activity,
+  Truck,
+  Bell,
+  User,
+  LogOut,
+  LayoutDashboard,
   Layers,
   ShieldCheck,
   ChevronDown
@@ -23,27 +23,149 @@ import './official.css';
 export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate }) {
   // Navigation tab: 'dashboard' | 'complaint-file' | 'status' | 'field-action' | 'notifications' | 'profile'
   const [activeTab, setActiveTab] = useState('dashboard');
-  
+
   // Data state
   const [complaints, setComplaints] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
+  //idk wt this is
+  const [sensorAlert, setSensorAlert] = useState(null);
 
-  const refreshData = () => {
-    const allComplaints = mockDb.getComplaints();
-    // In official portal, show all assigned complaints or filter to assigned
-    setComplaints(allComplaints);
-    setNotifications(mockDb.getOfficialNotifications());
+ const refreshData = () => {
+  const allComplaints = mockDb.getComplaints();
 
-    if (selectedComplaint) {
-      const updated = allComplaints.find(c => c.id === selectedComplaint.id);
-      if (updated) setSelectedComplaint(updated);
+  // Keep existing complaint data for the rest of the portal
+  setComplaints(allComplaints);
+
+  // Load the existing mock notifications.
+  // Sensor notifications are loaded separately from MongoDB
+  // by the sensor polling effect below.
+  setNotifications(mockDb.getOfficialNotifications());
+
+  if (selectedComplaint) {
+    const updated = allComplaints.find(
+      c => c.id === selectedComplaint.id
+    );
+
+    if (updated) {
+      setSelectedComplaint(updated);
     }
-  };
+  }
+};
 
   useEffect(() => {
     refreshData();
   }, []);
+useEffect(() => {
+  const checkForSensorComplaint = async () => {
+    try {
+      const token = localStorage.getItem('nagrikai_token');
+
+      const response = await fetch(
+        'http://localhost:5000/api/complaints',
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Failed to fetch complaints:', data);
+        return;
+      }
+
+      // Get all sensor-generated complaints from MongoDB
+      const sensorComplaints = (data.complaints || []).filter(
+        complaint => complaint.source === 'Sensor'
+      );
+
+      // Nothing to add
+      if (sensorComplaints.length === 0) {
+        return;
+      }
+
+      // Convert every MongoDB sensor complaint into
+      // the notification format used by OfficialNotifications.jsx
+      const sensorNotifications = sensorComplaints
+        .filter(complaint => complaint.id)
+        .map(complaint => ({
+          id: `sensor-${complaint.id}`,
+          type: 'urgent',
+          message: `New sensor complaint #${complaint.id} generated.`,
+          timestamp: complaint.createdAt
+            ? new Date(complaint.createdAt).toLocaleString()
+            : '',
+          complaintId: complaint.id,
+          unread: true
+        }));
+
+      // Merge sensor notifications with the existing mock notifications.
+      // Existing sensor notifications are replaced with the latest
+      // MongoDB version, so refreshing the page does NOT lose them.
+      setNotifications(prev => {
+        const mockNotifications = prev.filter(
+          notification =>
+            !String(notification.id).startsWith('sensor-')
+        );
+
+        return [
+          ...sensorNotifications,
+          ...mockNotifications
+        ];
+      });
+
+      // The API sorts newest complaints first, so this is the newest one.
+      const latestComplaint = sensorComplaints.find(
+        complaint => complaint.id
+      );
+
+      if (!latestComplaint) {
+        return;
+      }
+
+      const complaintId = latestComplaint.id;
+
+      const lastSeenSensorComplaint =
+        localStorage.getItem('last_seen_sensor_complaint');
+
+      // Show the popup only for a genuinely new complaint.
+      if (String(complaintId) !== lastSeenSensorComplaint) {
+
+        setSensorAlert({
+          source: 'IoT Sensor',
+          urgency: latestComplaint.urgency,
+          category: latestComplaint.category
+        });
+
+        localStorage.setItem(
+          'last_seen_sensor_complaint',
+          String(complaintId)
+        );
+      }
+
+    } catch (error) {
+      console.error(
+        'Sensor complaint check failed:',
+        error
+      );
+    }
+  };
+
+  checkForSensorComplaint();
+
+  const interval = setInterval(
+    checkForSensorComplaint,
+    1000
+  );
+
+  return () => clearInterval(interval);
+}, []);
+
+
 
   const unreadNotifCount = notifications.filter(n => n.unread).length;
 
@@ -52,12 +174,32 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
     setActiveTab('complaint-file');
   };
 
-  const handleSelectComplaintById = (id) => {
-    const allComplaints = mockDb.getComplaints();
-    const match = allComplaints.find(c => c.id === Number(id));
-    if (match) {
-      setSelectedComplaint(match);
+  const handleSelectComplaintById = async (id) => {
+    try {
+      const token = localStorage.getItem('nagrikai_token');
+
+      const response = await fetch(
+        `http://localhost:5000/api/complaints/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('Failed to fetch complaint:', data);
+        return;
+      }
+
+      setSelectedComplaint(data.complaint);
       setActiveTab('complaint-file');
+
+    } catch (error) {
+      console.error('Failed to open complaint:', error);
     }
   };
 
@@ -65,7 +207,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
     switch (activeTab) {
       case 'dashboard':
         return (
-          <OfficialDashboard 
+          <OfficialDashboard
             complaints={complaints}
             currentUser={currentUser}
             onSelectComplaint={handleSelectComplaint}
@@ -74,7 +216,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       case 'complaint-file':
         return (
-          <OfficialComplaintFile 
+          <OfficialComplaintFile
             complaint={selectedComplaint || complaints[0]}
             onBack={() => setActiveTab('dashboard')}
             onRefresh={refreshData}
@@ -83,7 +225,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       case 'status':
         return (
-          <OfficialStatusView 
+          <OfficialStatusView
             complaints={complaints}
             onSelectComplaint={handleSelectComplaint}
           />
@@ -91,7 +233,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       case 'field-action':
         return (
-          <OfficialFieldAction 
+          <OfficialFieldAction
             complaints={complaints}
             onRefresh={refreshData}
           />
@@ -99,7 +241,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       case 'notifications':
         return (
-          <OfficialNotifications 
+          <OfficialNotifications
             notifications={notifications}
             onRefresh={refreshData}
             onSelectComplaintById={handleSelectComplaintById}
@@ -108,7 +250,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       case 'profile':
         return (
-          <OfficialProfile 
+          <OfficialProfile
             currentUser={currentUser}
             onProfileUpdate={onProfileUpdate}
             onLogout={onLogout}
@@ -117,7 +259,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       default:
         return (
-          <OfficialDashboard 
+          <OfficialDashboard
             complaints={complaints}
             currentUser={currentUser}
             onSelectComplaint={handleSelectComplaint}
@@ -133,7 +275,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
         <nav className="official-nav-menu" style={{ paddingTop: '20px' }}>
           <div className="official-menu-label">Official Console</div>
 
-          <button 
+          <button
             className={`official-nav-item ${activeTab === 'dashboard' || activeTab === 'complaint-file' ? 'active' : ''}`}
             onClick={() => { setActiveTab('dashboard'); }}
           >
@@ -143,7 +285,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
             </div>
           </button>
 
-          <button 
+          <button
             className={`official-nav-item ${activeTab === 'status' ? 'active' : ''}`}
             onClick={() => setActiveTab('status')}
           >
@@ -153,7 +295,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
             </div>
           </button>
 
-          <button 
+          <button
             className={`official-nav-item ${activeTab === 'field-action' ? 'active' : ''}`}
             onClick={() => setActiveTab('field-action')}
           >
@@ -165,7 +307,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
           <div className="official-menu-label">Communication</div>
 
-          <button 
+          <button
             className={`official-nav-item ${activeTab === 'notifications' ? 'active' : ''}`}
             onClick={() => setActiveTab('notifications')}
           >
@@ -178,7 +320,7 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
             )}
           </button>
 
-          <button 
+          <button
             className={`official-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
           >
@@ -210,7 +352,33 @@ export default function OfficialPortal({ currentUser, onLogout, onProfileUpdate 
 
       {/* Main Content Workspace */}
       <main className="official-main-container">
+
+        {sensorAlert && (
+          <div className="sensor-alert-overlay">
+            <div className="sensor-alert-modal">
+              <h3>🚨 New Sensor Complaint</h3>
+
+              <p>
+                <strong>Source:</strong> {sensorAlert.source}
+              </p>
+
+              <p>
+                <strong>Urgency:</strong> {sensorAlert.urgency}
+              </p>
+
+              <p>
+                <strong>Category:</strong> {sensorAlert.category}
+              </p>
+
+              <button onClick={() => setSensorAlert(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
         {renderContent()}
+
       </main>
     </div>
   );

@@ -5,8 +5,8 @@
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "concurrently \"node server.js\" \"node sensorBridge/bridge.js\"",
+    "dev": "concurrently \"nodemon server.js\" \"node sensorBridge/bridge.js\"",
     "seed": "node scripts/seed.js",
     "seed:fresh": "node scripts/seed.js --fresh"
   },
@@ -25,6 +25,7 @@
     "morgan": "^1.10.0"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "nodemon": "^3.1.4"
   },
   "engines": {

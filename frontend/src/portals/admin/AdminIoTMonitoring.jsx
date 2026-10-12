@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { 
+import React, { useState, useEffect } from 'react';import { 
   Radio, 
   AlertTriangle, 
   MapPin, 
@@ -20,17 +19,34 @@ export default function AdminIoTMonitoring({
   selectedSensor, 
   setSelectedSensor 
 }) {
+  
   const [activeTab, setActiveTab] = useState('sensors');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  
+  // Keep the open sensor details modal synced with live backend data
+useEffect(() => {
+  if (!selectedSensor) return;
+
+  const updatedSensor = sensors.find(
+    sensor => sensor.id === selectedSensor.id
+  );
+
+  if (updatedSensor) {
+    setSelectedSensor(updatedSensor);
+  }
+}, [sensors]);
   // Edit threshold state inside sensor modal
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
   const [newThresholdValue, setNewThresholdValue] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
   // Stats
-  const activeSensorsCount = sensors.filter(s => s.status === 'Online').length;
-  const offlineSensorsCount = sensors.filter(s => s.status === 'Offline').length;
+ const waterSensor = sensors.find(sensor => sensor.id === 'SENSOR #01');
+
+const activeSensorsCount =
+  waterSensor?.status === 'Online' ? 1 : 0;
+
+const offlineSensorsCount =
+  waterSensor?.status === 'Offline' ? 1 : 0;
   const recentEventsCount = detectedEvents.length;
 
   const handleOpenSensor = (sensor) => {
@@ -109,7 +125,7 @@ export default function AdminIoTMonitoring({
             onClick={() => setActiveTab('sensors')}
           >
             <Radio size={14} style={{ display: 'inline', marginRight: '6px' }} />
-            Sensor Fleet ({sensors.length})
+           Sensor Fleet (1)
           </button>
           <button 
             className={`admin-filter-tab ${activeTab === 'events' ? 'active' : ''}`}
@@ -124,8 +140,10 @@ export default function AdminIoTMonitoring({
       {/* SENSOR FLEET CARDS GRID */}
       {activeTab === 'sensors' && (
         <div className="admin-sensor-grid">
-          {sensors.map(sensor => (
-            <div key={sensor.id} className="admin-sensor-card">
+{sensors
+  .filter(sensor => sensor.id === 'SENSOR #01')
+  .map(sensor => (
+                <div key={sensor.id} className="admin-sensor-card">
               <div className="admin-sensor-header">
                 <div className="admin-sensor-id">
                   <Cpu size={18} className="text-blue-400" />
@@ -376,48 +394,7 @@ export default function AdminIoTMonitoring({
               </div>
 
               {/* READINGS HISTORY TABLE */}
-              <div className="admin-inspector-block">
-                <h4><History size={14} /> Readings History</h4>
-
-                <div className="admin-table-container" style={{ marginTop: '10px' }}>
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>SNO.</th>
-                        <th>READING</th>
-                        <th>LOCATION</th>
-                        <th>TIME</th>
-                        <th>URGENCY</th>
-                        <th>STATUS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedSensor.historyLogs && selectedSensor.historyLogs.length > 0 ? (
-                        selectedSensor.historyLogs.map(log => (
-                          <tr key={log.sno}>
-                            <td>#{log.sno}</td>
-                            <td><strong style={{ color: '#f87171' }}>{log.reading}</strong></td>
-                            <td>{log.location}</td>
-                            <td>{log.time}</td>
-                            <td>
-                              <span className={`admin-badge ${log.urgency.toLowerCase()}`}>
-                                {log.urgency}
-                              </span>
-                            </td>
-                            <td>{log.status}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="6" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>
-                            No threshold breaches logged in recent cycles.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+    
             </div>
 
             <div className="admin-modal-footer">

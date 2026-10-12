@@ -38,19 +38,49 @@ export default function AdminPortal({ currentUser, onLogout, onProfileUpdate }) 
   const [selectedSensor, setSelectedSensor] = useState(null);
 
   // Sync data
-  const refreshAllData = () => {
-    setComplaints(mockDb.getComplaints());
-    setOfficials(mockDb.getOfficials());
-    setCitizens(mockDb.getCitizens());
-    setSensors(mockDb.getSensors());
-    setDetectedEvents(mockDb.getDetectedEvents());
-    setAiLogs(mockDb.getAILogs());
-    setAdminNotifications(mockDb.getAdminNotifications());
-  };
+const refreshAllData = async () => {
+  setComplaints(mockDb.getComplaints());
+  setOfficials(mockDb.getOfficials());
+  setCitizens(mockDb.getCitizens());
 
-  useEffect(() => {
+  // Get real IoT sensors from backend
+  try {
+    const token = localStorage.getItem('nagrikai_token');
+
+    const response = await fetch('http://localhost:5000/api/sensors', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setSensors(data.sensors || []);
+    } else {
+      console.error('Failed to fetch sensors:', data);
+      setSensors([]);
+    }
+  } catch (error) {
+    console.error('Sensor fetch error:', error);
+    setSensors([]);
+  }
+
+  setDetectedEvents(mockDb.getDetectedEvents());
+  setAiLogs(mockDb.getAILogs());
+  setAdminNotifications(mockDb.getAdminNotifications());
+};
+
+useEffect(() => {
+  refreshAllData();
+
+  const interval = setInterval(() => {
     refreshAllData();
-  }, []);
+  }, 500);
+
+  return () => clearInterval(interval);
+}, []);
 
   // Calculated KPI stats
   const stats = {

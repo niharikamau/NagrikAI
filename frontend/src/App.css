@@ -182,3 +182,29 @@
     border-right-color: var(--border);
   }
 }
+.sensor-alert-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 90px;
+  z-index: 9999;
+}
+
+.sensor-alert-modal {
+  width: 420px;
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.sensor-alert-modal h3 {
+  margin-top: 0;
+}
+
+.sensor-alert-modal button {
+  margin-top: 15px;
+}

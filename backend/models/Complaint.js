@@ -17,7 +17,7 @@ const aiAssessmentSchema = new mongoose.Schema(
 
     understanding: String,
 
-severity: String,
+    severity: String,
 
 
     relevantLaws: {
@@ -91,9 +91,16 @@ const complaintSchema = new mongoose.Schema(
     lastUpdated: String,
 
     // citizen who filed it — set from the authenticated user, never trusted from the client
-    citizenName: { type: String, required: true },
-    citizenEmail: { type: String, required: true, lowercase: true, index: true },
+    citizenName: { type: String },
+    citizenEmail: { type: String, lowercase: true, index: true },
     citizenPhone: String,
+    source: {
+      type: String,
+      enum: ["Citizen", "Sensor"],
+      default: "Citizen",
+    },
+
+    sensorId: String,
 
     locationName: String,
     locationCoordinates: {

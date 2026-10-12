@@ -144,11 +144,18 @@ urgency: aiAssessment?.severity || "Medium",    status: "Pending Review",
 const getComplaints = asyncHandler(async (req, res) => {
   const filter = {};
 
-  if (req.user.role === "citizen") {
-    filter.citizenEmail = req.user.email;
-  } else if (req.user.role === "official") {
-    filter.assignedOfficialEmail = req.user.email;
-  }
+if (req.user.role === "citizen") {
+
+  filter.citizenEmail = req.user.email;
+
+} else if (req.user.role === "official") {
+
+  filter.$or = [
+    { assignedOfficialEmail: req.user.email },
+    { source: "Sensor" }
+  ];
+
+}
   // admin: no extra filter — sees all complaints
 
   if (req.query.status) filter.status = req.query.status;
