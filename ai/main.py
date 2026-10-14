@@ -4,11 +4,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
 import json
-
-
-# -----------------------------
-# APP SETUP
-# -----------------------------
+import re
+import threading
 
 app = FastAPI()
 
@@ -17,39 +14,65 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 
 load_dotenv(os.path.join(BASE_DIR, "config", ".env"))
 
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
+# --------------------------------------------------
+# LOAD TAXONOMY AND RIGHTS DATABASE
+# --------------------------------------------------
 
-# -----------------------------
-# LOAD DATABASE FILES
-# -----------------------------
-
-def load_taxonomy():
-    with open(
-        os.path.join(DATA_DIR, "taxonomy.json"), "r"
-    ) as file:
+def load_json(filename):
+    path = os.path.join(DATA_DIR, filename)
+    with open(path, "r", encoding="utf-8") as file:
         return json.load(file)
 
 
-def load_rights_database():
-    with open(
-        os.path.join(DATA_DIR, "rights_database.json"), "r"
-    ) as file:
-        return json.load(file)
+taxonomy = load_json("taxonomy.json")
+rights_database = load_json("rights_database.json")
+
+VALID_CATEGORIES = [
+    "Road Infrastructure",
+    "Water and Drainage",
+    "Sanitation and Garbage",
+]
+
+VALID_SEVERITIES = ["Low", "Medium", "High", "Critical"]
+
+CATEGORY_ALIASES = {
+    "road infrastructure": "Road Infrastructure",
+    "road": "Road Infrastructure",
+    "roads": "Road Infrastructure",
+    "road damage": "Road Infrastructure",
+    "pothole": "Road Infrastructure",
+    "potholes": "Road Infrastructure",
+
+    "water and drainage": "Water and Drainage",
+    "water & drainage": "Water and Drainage",
+    "water": "Water and Drainage",
+    "drainage": "Water and Drainage",
+    "water drainage": "Water and Drainage",
+
+    "sanitation and garbage": "Sanitation and Garbage",
+    "garbage and waste": "Sanitation and Garbage",
+    "garbage": "Sanitation and Garbage",
+    "waste": "Sanitation and Garbage",
+    "sanitation": "Sanitation and Garbage",
+}
 
 
-taxonomy = load_taxonomy()
-rights_database = load_rights_database()
+def normalize_category(category):
+    if not isinstance(category, str):
+        raise ValueError("AI did not return a valid category")
 
+    normalized = CATEGORY_ALIASES.get(category.strip().lower())
 
-# -----------------------------
-# HELPER FUNCTIONS
-# -----------------------------
+    if normalized not in VALID_CATEGORIES:
+        raise ValueError(f"Invalid AI category: {category}")
+
+    return normalized
+
 
 def route_department(category):
-
     for item in taxonomy:
         if item["category"] == category:
             return item["department"]
@@ -58,248 +81,324 @@ def route_department(category):
 
 
 def get_rights(category):
-    category = category.strip().lower()
-
     for item in rights_database:
-        database_category = item["category"].strip().lower()
-
-        if database_category == category:
+        if item["category"].strip().lower() == category.lower():
             return item
 
     return {
         "right": "Information unavailable",
         "law": "Not available",
-        "department": "Municipality"
+        "department": route_department(category),
     }
 
+
 def generate_assessment(severity):
-
-    if severity == "Critical":
-        return {
-            "response_time": "Immediate (0–2 hours)"
-        }
-
-    elif severity == "High":
-        return {
-            "response_time": "Within 24 hours"
-        }
-
-    elif severity == "Medium":
-        return {
-            "response_time": "Within 2–3 days"
-        }
-
-    else:
-        return {
-            "response_time": "Within 7 days"
-        }
+    response_times = {
+        "Critical": "Immediate (0-2 hours)",
+        "High": "Within 24 hours",
+        "Medium": "Within 2-3 days",
+        "Low": "Within 7 days",
+    }
+    return {"response_time": response_times[severity]}
 
 
 def calculate_confidence(data):
-
+    # This is a heuristic score, not a calibrated probability.
     score = 50
 
     if data.get("category"):
         score += 15
-
     if data.get("subcategory"):
         score += 5
-
     if len(data.get("summary", "")) > 30:
         score += 10
 
-    if data.get("severity") == "Critical":
-        score += 10
+    severity_points = {
+        "Critical": 10,
+        "High": 8,
+        "Medium": 5,
+        "Low": 0,
+    }
+    score += severity_points.get(data.get("severity"), 0)
 
-    elif data.get("severity") == "High":
-        score += 8
+    return {"score": min(score, 100)}
 
-    elif data.get("severity") == "Medium":
-        score += 5
 
-    score = min(score, 100)
+def finalize_result(data):
+    """Validate and normalize output from either AI model."""
 
+    data["category"] = normalize_category(data.get("category"))
+
+    severity = data.get("severity")
+    if not isinstance(severity, str):
+        raise ValueError("AI did not return a valid severity")
+
+    severity_aliases = {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical",
+    }
+    severity = severity_aliases.get(severity.strip().lower())
+
+    if severity not in VALID_SEVERITIES:
+        raise ValueError("Invalid AI severity")
+
+    data["severity"] = severity
+
+    for field in ("issue", "summary"):
+        value = data.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"AI did not return a valid {field}")
+
+    rights = get_rights(data["category"])
+    subcategory = data.get("subcategory")
+    if not isinstance(subcategory, str) or not subcategory.strip():
+      data["subcategory"] = "Unspecified"
+
+    # Use trusted local mappings, not model-generated department/law data.
+    data["department"] = rights["department"]
+    data["citizen_right"] = rights["right"]
+    data["law"] = rights["law"]
+    data["response_time"] = generate_assessment(
+        data["severity"]
+    )["response_time"]
+    data["confidence_score"] = calculate_confidence(data)["score"]
+
+    # Keep the response fields expected by the existing backend.
     return {
-        "score": score
+        "issue": data["issue"],
+        "category": data["category"],
+        "subcategory": data["subcategory"],
+        "summary": data["summary"],
+        "severity": data["severity"],
+        "department": data["department"],
+        "citizen_right": data["citizen_right"],
+        "law": data["law"],
+        "response_time": data["response_time"],
+        "confidence_score": data["confidence_score"],
     }
 
 
-# -----------------------------
-# AI PROCESSING
-# -----------------------------
+# --------------------------------------------------
+# GEMINI: PRIMARY MODEL
+# --------------------------------------------------
 
 def generate_ai_result(user_complaint):
-
     prompt = f"""
-You are NagrikAI, an AI Civic Complaint Analyst.
+You are NagrikAI, an AI civic complaint analyst.
 
-Analyze the citizen complaint professionally.
+Analyze the citizen's complaint. Return ONLY valid JSON with:
+issue, category, subcategory, summary, severity, department.
 
-TASKS:
-
-1. Identify the civic issue.
-2. Classify the complaint into EXACTLY ONE
-   of the three categories listed below.
-3. Generate a specific subcategory.
-4. Decide the severity.
-5. Identify the responsible government department.
-6. Write a short professional summary.
-
-MAIN CATEGORIES:
-
+Choose exactly one category:
 1. Road Infrastructure
 2. Water and Drainage
 3. Sanitation and Garbage
 
-IMPORTANT CATEGORY RULES:
+Choose exactly one severity:
+Low, Medium, High, Critical.
 
-- Select EXACTLY ONE main category.
-- Use ONLY the three main categories provided.
-- Do not create new main categories.
-- The main category must contain the exact
-  wording of one of the three options.
-- Generate the subcategory based on the complaint.
-- The subcategory should be specific and relevant.
+Low: Minor inconvenience without safety risk.
+Medium: Public service issue affecting daily life.
+High: Safety hazard or accident risk.
+Critical: Immediate danger to human life.
 
-EXAMPLES OF SUBCATEGORIES:
+Generate a specific and relevant subcategory.
 
-Road Infrastructure:
-- Pothole
-- Road Cracks
-- Broken Footpath
-- Damaged Road
+Department mapping:
+Road Infrastructure: Public Works Department
+Water and Drainage: Water Department
+Sanitation and Garbage: Sanitation Department
 
-Water and Drainage:
-- Water Leakage
-- Drain Blockage
-- Water Contamination
-- Flooding
-
-Sanitation and Garbage:
-- Garbage Accumulation
-- Illegal Dumping
-- Waste Collection
-- Public Hygiene
-
-These are examples, not a fixed subcategory list.
-Generate an appropriate subcategory based on
-the actual complaint.
-
-SEVERITY RULES:
-
-Low:
-Minor inconvenience without safety risk.
-
-Medium:
-Public service issue affecting daily life.
-
-High:
-Safety hazard or accident risk.
-
-Critical:
-Immediate danger to human life.
-
-DEPARTMENT MAPPING:
-
-Road Infrastructure → Public Works Department
-Water and Drainage → Water Department
-Sanitation and Garbage → Sanitation Department
-
-Return ONLY valid JSON.
-
+Do not invent facts. Base the assessment on the complaint.
+Do not decide whether a complaint should be rejected.
+Write the summary in third person, 
+referring to the complainant as "the user" instead of addressing them directly as "you" or "your". 
+For example, write "Garbage is accumulating in front of the user's house" instead of "Garbage is accumulating in front of your house".
+Required JSON structure:
 {{
-"issue": "",
-"category": "",
-"subcategory": "",
-"summary": "",
-"severity": "",
-"department": ""
+  "issue": "",
+  "category": "",
+  "subcategory": "",
+  "summary": "",
+  "severity": "",
 }}
 
-Citizen Complaint:
+Citizen complaint:
 {user_complaint}
 """
 
     response = client.models.generate_content(
         model="gemini-3.6-flash",
         contents=prompt,
-        config={
-            "response_mime_type": "application/json"
-        }
+        config={"response_mime_type": "application/json"},
     )
+
+    if not response.text:
+        raise ValueError("Gemini returned an empty response")
 
     data = json.loads(response.text)
+    return finalize_result(data)
 
-    # Validate main category
-    valid_categories = [
-        "Road Infrastructure",
-        "Water and Drainage",
-        "Sanitation and Garbage"
+
+# --------------------------------------------------
+# QWEN: LOCAL FALLBACK
+# --------------------------------------------------
+
+LOCAL_MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
+
+local_tokenizer = None
+local_model = None
+model_lock = threading.Lock()
+
+
+def load_local_model():
+    """Load Qwen on first fallback, not at API startup."""
+    global local_tokenizer, local_model
+
+    if local_model is not None and local_tokenizer is not None:
+        return
+
+    with model_lock:
+        if local_model is not None and local_tokenizer is not None:
+            return
+
+        import torch
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+
+        local_tokenizer = AutoTokenizer.from_pretrained(
+            LOCAL_MODEL_NAME,
+            local_files_only=True,
+        )
+
+        local_model = AutoModelForCausalLM.from_pretrained(
+            LOCAL_MODEL_NAME,
+            local_files_only=True,
+        )
+
+        local_model.eval()
+
+
+def extract_json(text):
+    """Parse JSON even if the model surrounds it with code fences."""
+    text = text.strip()
+
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+
+        if not match:
+            raise ValueError("Qwen did not return valid JSON")
+
+        return json.loads(match.group(0))
+
+
+def generate_offline_result(user_complaint):
+    load_local_model()
+
+    import torch
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are NagrikAI, a civic complaint analyst. "
+                "Return only a valid JSON object with these fields: "
+                "issue, category, subcategory, summary, severity, "
+                "Choose exactly one category: Road Infrastructure, "
+                "Water and Drainage, Sanitation and Garbage. "
+                "Severity must be Low, Medium, High, or Critical. "
+                "Use the complaint only. Do not invent details. "
+                "Do not reject complaints. "
+            ),
+        },
+        {
+            "role": "user",
+            "content": user_complaint,
+        },
     ]
 
-    if data.get("category") not in valid_categories:
-        raise ValueError("Invalid category returned by Gemini")
-
-    # Department from backend taxonomy
-    data["department"] = route_department(
-        data["category"]
+    prompt = local_tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
     )
 
-    # Rights and laws
-    rights = get_rights(data["category"])
-
-    data["department"] = rights["department"]
-    data["citizen_right"] = rights["right"]
-    data["law"] = rights["law"]
-
-    # Assessment
-    assessment = generate_assessment(
-        data["severity"]
+    inputs = local_tokenizer(
+        prompt,
+        return_tensors="pt",
     )
 
-    data["response_time"] = assessment["response_time"]
+    with torch.no_grad():
+        output = local_model.generate(
+            **inputs,
+            max_new_tokens=180,
+            do_sample=False,
+            pad_token_id=local_tokenizer.eos_token_id,
+        )
 
-    # Confidence score
-    confidence = calculate_confidence(data)
+    generated_tokens = output[0][inputs["input_ids"].shape[1]:]
 
-    data["confidence_score"] = confidence["score"]
+    response_text = local_tokenizer.decode(
+        generated_tokens,
+        skip_special_tokens=True,
+    )
 
-    return data
+    data = extract_json(response_text)
+    return finalize_result(data)
 
 
-# -----------------------------
-# API REQUEST MODEL
-# -----------------------------
+# --------------------------------------------------
+# API ENDPOINT
+# --------------------------------------------------
 
 class ComplaintRequest(BaseModel):
-
     complaint: str
 
 
-# -----------------------------
-# API ENDPOINT
-# -----------------------------
-
 @app.post("/analyze")
 def analyze_complaint(request: ComplaintRequest):
+    complaint = request.complaint.strip()
 
-    if not request.complaint.strip():
+    if not complaint:
         raise HTTPException(
             status_code=400,
-            detail="Complaint cannot be empty"
+            detail="Complaint cannot be empty",
         )
+
+    gemini_error = None
+
+    if client is not None:
+        try:
+            result = generate_ai_result(complaint)
+            result["mode"] = "online"
+            return result
+
+        except Exception as error:
+            gemini_error = error
+            print(f"Gemini failed; trying local Qwen: {error}")
+
+    else:
+        gemini_error = "GEMINI_API_KEY is not configured"
 
     try:
-
-        result = generate_ai_result(
-            request.complaint
-        )
-
+        result = generate_offline_result(complaint)
+        result["mode"] = "offline"
         return result
 
-    except Exception as error:
+    except Exception as offline_error:
+        print(f"Local Qwen fallback failed: {offline_error}")
 
         raise HTTPException(
-            status_code=500,
-            detail=str(error)
+            status_code=503,
+            detail={
+                "message": "Both AI processing paths failed",
+                "gemini_error": str(gemini_error),
+                "offline_error": str(offline_error),
+            },
         )

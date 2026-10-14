@@ -265,22 +265,76 @@ const token = localStorage.getItem('nagrikai_token');
   }
 };
 
-  const handleFileComplaint = () => {
+const handleFileComplaint = async () => {
+  try {
+    const token = localStorage.getItem("nagrikai_token");
+
+    if (!token) {
+      throw new Error("Please log in again to file your complaint.");
+    }
+
+    // 1. Upload the actual image, if one was selected.
+    let evidence = [];
+
+    if (evidenceFile) {
+      const imageData = new FormData();
+      imageData.append("evidence", evidenceFile);
+
+      const uploadResponse = await fetch(
+        "http://localhost:5000/api/complaints/upload",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: imageData,
+        }
+      );
+
+      const uploadResult = await uploadResponse.json();
+
+      if (!uploadResponse.ok || !uploadResult.success) {
+        throw new Error(uploadResult.message || "Image upload failed.");
+      }
+
+      evidence = [uploadResult.evidence];
+    }
+
+    // 2. Save the complaint in MongoDB through Express.
     const finalComplaint = {
-      id: complaintId,
       title: formData.title,
       description: formData.description,
       category: formData.category,
       locationName: formData.locationName,
       locationCoordinates: formData.locationCoordinates,
-      evidence: formData.evidence,
-      aiAssessment: formData.aiAssessment
+      evidence,
+      aiAssessment: formData.aiAssessment,
     };
 
-    mockDb.saveComplaint(finalComplaint);
+    const response = await fetch("http://localhost:5000/api/complaints/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(finalComplaint),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || "Failed to submit complaint.");
+    }
+
+    // 3. Clear the draft only after successful submission.
     mockDb.clearDraft();
-    setActiveTab('my-complaints');
-  };
+    setActiveTab("my-complaints");
+  } catch (error) {
+    console.error("Complaint submission failed:", error);
+    setError(error.message || "Something went wrong while filing your complaint.");
+  }
+};
+
 
   return (
     <div className="file-complaint-container container animate-fade-in">

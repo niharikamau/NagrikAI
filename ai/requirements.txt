@@ -1,3 +1,6 @@
 google-genai
 python-dotenv
-pandas
+fastapi
+uvicorn
+torch
+transformers

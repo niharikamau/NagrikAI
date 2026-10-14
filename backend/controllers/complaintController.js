@@ -68,7 +68,10 @@ const analyzeComplaint = asyncHandler(async (req, res) => {
     id: `AI-LOG-${logId}`,
     time: formatTime(new Date()),
     date: formatDate(new Date()),
-    model: "Gemini",
+    model:
+      aiResult.mode === "offline"
+        ? "Qwen2.5-0.5B-Instruct"
+        : "Gemini",
     task: "Classification",
   });
 
@@ -83,22 +86,43 @@ const analyzeComplaint = asyncHandler(async (req, res) => {
 // Mirrors mockDb.saveComplaint — but unlike the old frontend mock, the
 // citizen's identity is always taken from the authenticated user, never
 // from the request body, so complaints can't be filed under someone else's name.
+
 const createComplaint = asyncHandler(async (req, res) => {
-  const { title, description, category, locationName, locationCoordinates, evidence, aiAssessment } =
-    req.body;
+  const {
+    title,
+    description,
+    category,
+    locationName,
+    locationCoordinates,
+    evidence,
+    aiAssessment,
+  } = req.body;
 
   const now = new Date();
   const id = await getNextSequence("complaintId");
 
-  const complaint = await Complaint.create({
+  const finalCategory =
+    category || aiAssessment?.category || "General Municipal Issue";
+
+  // Prototype routing: your one officer handles Water Department complaints.
+  const isWaterComplaint = [
+    "Water and Drainage",
+    "Water & Drainage",
+    "Water Department",
+  ].some(
+    value => finalCategory.trim().toLowerCase() === value.toLowerCase()
+  );
+
+  const complaintData = {
     id,
     title,
     issue: title,
     description,
     rawText: description,
     aiSummary: aiAssessment?.understanding || "",
-    category: category || aiAssessment?.category || "General Municipal Issue",
-urgency: aiAssessment?.severity || "Medium",    status: "Pending Review",
+    category: finalCategory,
+    urgency: aiAssessment?.severity || "Medium",
+    status: "Pending Review",
     submittedDate: formatDateTime(now),
     lastUpdated: formatDateTime(now),
     citizenName: req.user.name,
@@ -116,7 +140,16 @@ urgency: aiAssessment?.severity || "Medium",    status: "Pending Review",
         notes: "Complaint received by the system.",
       },
     ],
-  });
+    assignedOfficialEmail: isWaterComplaint
+      ? "test@officer.com"
+      : undefined,
+
+    source: "Citizen",
+  };
+
+  // Only assign automatically if we can identify the actual water officer.
+  // We'll add that lookup after checking your User model.
+  const complaint = await Complaint.create(complaintData);
 
   await notify("admin", {
     title: "New Complaint Registered",
@@ -136,6 +169,7 @@ urgency: aiAssessment?.severity || "Medium",    status: "Pending Review",
   res.status(201).json({ success: true, complaint });
 });
 
+
 // @route   GET /api/complaints
 // @access  Private
 // Role-scoped: citizens see only their own complaints, officials see only
@@ -144,18 +178,18 @@ urgency: aiAssessment?.severity || "Medium",    status: "Pending Review",
 const getComplaints = asyncHandler(async (req, res) => {
   const filter = {};
 
-if (req.user.role === "citizen") {
+  if (req.user.role === "citizen") {
 
-  filter.citizenEmail = req.user.email;
+    filter.citizenEmail = req.user.email;
 
-} else if (req.user.role === "official") {
+  } else if (req.user.role === "official") {
 
-  filter.$or = [
-    { assignedOfficialEmail: req.user.email },
-    { source: "Sensor" }
-  ];
+    filter.$or = [
+      { assignedOfficialEmail: req.user.email },
+      { source: "Sensor" }
+    ];
 
-}
+  }
   // admin: no extra filter — sees all complaints
 
   if (req.query.status) filter.status = req.query.status;

@@ -4,7 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const mongoSanitize = require("express-mongo-sanitize");
-
+const path = require("path");
 dotenv.config();
 
 const connectDB = require("./config/db");
@@ -55,6 +55,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/ai-logs", aiLogRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/field-actions", fieldActionRoutes);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // --- Error handling (must be last) ---
 app.use(notFound);
