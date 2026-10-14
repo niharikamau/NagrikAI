@@ -69,3 +69,8 @@ AND USER TO THE OFFCIER OF WATER
 
 //FIELD ACTION PENDING 
 //ADMIN SHOW ALL COMPLAINTS MAYBE PENDING 
+
+
+to start frontend -> npm run dev in frontend folder
+to start backend -> npm run dev in backend folder
+to start ai -> python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
