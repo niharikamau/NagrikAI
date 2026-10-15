@@ -1,0 +1,20 @@
+[
+  {
+    "category": "Road Infrastructure",
+    "right": "Citizens have the right to safe public roads.",
+    "law": "Municipal road maintenance responsibility",
+    "department": "Public Works Department"
+  },
+  {
+    "category": "Water and Drainage",
+    "right": "Citizens have the right to clean water and proper drainage.",
+    "law": "Municipal Water Supply & Drainage Regulations",
+    "department": "Water Department"
+  },
+  {
+    "category": "Sanitation and Garbage",
+    "right": "Citizens have the right to sanitation and clean surroundings.",
+    "law": "Solid Waste Management Rules, 2016",
+    "department": "Sanitation Department"
+  }
+]

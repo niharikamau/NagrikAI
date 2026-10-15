@@ -1,0 +1,76 @@
+remove risk level
+remove location
+categroy only two words zero shot
+??recomenned action??
+remove reason???
+remove confidence level very High
+
+law ka sochna padega
+??response time??
+
+we are using local stoage to tore jwt tockens in production we 
+have other methods like httponly
+
+authentciation logn signup for user portal works 
+
+Navbar.jsx:131 Encountered two children with the same key, `9296`.
+ Keys should be unique so that components
+maintain their identity across updates.
+Non-unique keys may cause children to
+be duplicated and/or omitted — the behavior is unsupported and 
+could change in a future version.
+
+rn its dummy mockup map so shit could work offline
+-we have to secure phoo itegrity 
+-sort suplicate complinst 
+-sort sensors
+
+make the photo upload pretty and visible like a preview 
+currently itstsoring in formData.evidence file later we nee dit to wire up
+to mongodb 
+
+- currently laws and category are hard coded 
+-we can useai for border aspects categprigrization 
+- we can skip he location automatically give them edit option
+
+// WE SUCESSFULLY CONNECTED AUTH FROM FRONT TO BACKEND 
+// WE SUCESSFULLY CONNECETED AI TO FRONT TO BACK  FOR COMPLAINTS
+// COMPLAINT WHOLE THRU IS WORKING 
+
+
+//WE SUCESSFULLY GOT TEH READINGS RUNNING
+// WE MADE IT AUTOMATIC TO COMPLAINTS DB
+// WE CAN SEE T IN OFFCIAL'S UI 
+//BUG IS THAT IT DOESNT REGISTER NEW COMPLAINT
+AFTER 2 OR 1 COMPLINT IF TEH ARDUINO IS DISCONNECETD 
+AND THE BACKEND IS TURNED BACK ON 
+
+//OFFLINE ONLINE BUG IS PRESENT
+//SIGNUP BUG IS PRESENT
+
+//IMPLEMENTED SUCESSFULLY QWEN 2.0 AS A GEMINI FALLBACK
+//TAKES TIME 5 TO 10 SECONDS FOR AI ASSESMENT - ISNT THAT GOOD AOF A MODEL
+// THE FIELDS ARE TO BE DISCUSED NOTED FOR QNA
+
+//AI WORKING WE NEED TO KNWO THE POINT GENERATION ETC. 
+
+//HAVE TO DECIDE WHO DECIDES THE SEVERIY?
+//I CANT SEE DRAFTS 
+//ISSUE AND SUB CATEGORY ARE same IG?
+//notifications of error filing complaint remains 
+//TITLE NEEDS TO BE THERE
+//VIEW DETAILS IMPLEMENTATION
+//multiple water people how do we sort complaints?/ -theory ready 
+
+//currently hard coded all water assignmenets to test@officer.com
+
+//ASSIGED THE WATER COMPLAINTS FROM SENSOR 
+AND USER TO THE OFFCIER OF WATER
+
+//FIELD ACTION PENDING 
+//ADMIN SHOW ALL COMPLAINTS MAYBE PENDING 
+
+
+to start frontend -> npm run dev in frontend folder
+to start backend -> npm run dev in backend folder
+to start ai -> python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload in ai folder

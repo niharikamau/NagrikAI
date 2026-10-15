@@ -1,0 +1,18 @@
+{
+  "name": "sensorbridge",
+  "version": "1.0.0",
+  "description": "",
+  "main": "bridge.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "axios": "^1.20.0",
+    "serialport": "^13.0.0"
+  }
+}

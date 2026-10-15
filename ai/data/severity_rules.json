@@ -1,0 +1,18 @@
+[
+  {
+    "severity":"Low",
+    "description":"Minor inconvenience with no immediate safety risk."
+  },
+  {
+    "severity":"Medium",
+    "description":"Public service issue affecting daily life but not immediately dangerous."
+  },
+  {
+    "severity":"High",
+    "description":"Safety hazard, repeated issue, or risk of accidents."
+  },
+  {
+    "severity":"Critical",
+    "description":"Immediate danger to human life requiring urgent attention."
+  }
+]
